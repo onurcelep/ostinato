@@ -4,6 +4,8 @@
 
 > *ostinato* — a musical pattern that repeats persistently. That's the whole idea.
 
+**▶ Live:** https://onurcelep.github.io/ostinato/
+
 ## Features
 
 - **Loop sections (A–B)** — mark a start and end, loop it instantly; save named loops and switch between them.
@@ -11,18 +13,22 @@
 - **Speed** — 25%–200% with "keep pitch" (time-stretch), and an optional song-BPM readout.
 - **On-video controls** — set A/B and toggle the loop right from the player.
 - **History** — recent files are remembered locally (stored in your browser via IndexedDB) and reopen instantly.
-- **100% client-side** — no server, no accounts, no tracking. Works offline.
+- **Installable PWA** — add it to your home screen / dock and it runs offline in its own window.
+- **Responsive** — works on desktop and mobile.
+- **100% client-side** — no server, no accounts, no tracking.
 
 ## Use it
 
-Just open **`index.html`** in any modern browser, or visit the hosted version.
+Open **https://onurcelep.github.io/ostinato/** (or open `index.html` directly).
 Drop a file (or click to browse), set your loop, and practice.
+
+**Install (optional):** on desktop, use your browser's *Install* option; on mobile, *Share → Add to Home Screen*. It then works fully offline.
 
 > Note: the transpose/pitch engine uses an AudioWorklet when served over `http(s)` and falls back to a ScriptProcessor when opened directly from `file://`, so it works either way.
 
 ## Tech
 
-A single self-contained `index.html` — plain HTML/CSS/JS, no build step, no dependencies to install. The pitch/tempo engine ([SoundTouchJS](https://github.com/cutterbl/SoundTouchJS)) is bundled inline.
+A static site with no build step and no dependencies to install: a self-contained **`index.html`** (HTML/CSS/JS with the pitch/tempo engine, [SoundTouchJS](https://github.com/cutterbl/SoundTouchJS), bundled inline) plus PWA assets (`manifest.json`, `sw.js`, icons).
 
 ## License
 
