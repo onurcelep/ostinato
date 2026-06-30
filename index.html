@@ -53,7 +53,7 @@
 
   /* main */
   main{overflow:auto;display:flex;flex-direction:column}
-  .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:15px 24px;background:rgba(236,227,207,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:15px 24px;background:rgba(244,238,225,.9);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
   .brand{display:inline-flex;align-items:center;gap:9px;cursor:pointer}
   .brand .mark{width:13px;height:22px;color:var(--accent);flex:none}
   .coffee{display:inline-flex;align-items:center;gap:7px;color:var(--mut);text-decoration:none;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:6px 12px;font-size:12px}
@@ -154,7 +154,10 @@
 
   /* ---- mobile / responsive ---- */
   @media (max-width:760px){
-    #app{grid-template-columns:1fr}
+    /* simple, robust document flow on mobile — avoids iOS 100vh-grid collapse */
+    html,body{height:auto}
+    #app{display:block;height:auto}
+    main{overflow:visible;height:auto}
     /* history becomes a slide-in drawer below the top bar */
     #sidebar{position:fixed;top:51px;left:0;bottom:0;width:84%;max-width:300px;z-index:60;background:var(--paper);
              border-right:1px solid var(--line);box-shadow:6px 0 30px rgba(0,0,0,.18);
