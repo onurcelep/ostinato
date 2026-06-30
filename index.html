@@ -60,6 +60,8 @@
   .coffee:hover{color:var(--accent);border-color:var(--accent)}
   .coffee svg{width:16px;height:16px}
   .topbar .title{letter-spacing:.18em;font-size:13px;font-weight:600}
+  .tagline{color:var(--mut);font-size:11px;letter-spacing:.03em;border-left:1px solid var(--line-2);padding-left:13px;margin-left:5px}
+  @media (max-width:900px){ .tagline{display:none} }
   .wrap{max-width:1040px;width:100%;margin:0 auto;padding:30px 24px}
   .stage{display:grid;grid-template-columns:minmax(0,1fr) 332px;gap:18px;align-items:start}
   .player{min-width:0}
@@ -192,6 +194,7 @@
         <span class="title">OSTINATO</span>
         <svg class="mark" viewBox="0 0 13 24" aria-hidden="true"><circle cx="5" cy="9" r="1.3" fill="currentColor"/><circle cx="5" cy="15" r="1.3" fill="currentColor"/><rect x="7.1" y="4" width="1.3" height="16" rx="0.5" fill="currentColor"/><rect x="9.4" y="4" width="2.6" height="16" rx="0.7" fill="currentColor"/></svg>
       </span>
+      <span class="tagline">loop &middot; slow down &middot; transpose your own audio &amp; video</span>
       <span class="grow"></span>
       <a class="coffee" href="https://buymeacoffee.com/onurcelep" target="_blank" rel="noopener" title="Support Ostinato">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h11v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9z"/><path d="M16 10h2.5a2 2 0 0 1 0 4H16"/><path d="M8.5 5c0 1-1 1-1 2M11.5 5c0 1-1 1-1 2"/></svg>
