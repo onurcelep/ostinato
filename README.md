@@ -1,4 +1,4 @@
-# 𝄆 Ostinato 𝄇
+# 𝄆 ostinato 𝄇
 
 **A private, offline practice looper for musicians.** Open a local video or audio file, loop a passage, slow it down, and change the key — all in your browser. Nothing is uploaded; your files never leave your device.
 
@@ -31,4 +31,4 @@ It bundles **SoundTouchJS**, which is licensed under **LGPL-2.1**; its notice is
 
 ## Support
 
-If Ostinato helps your practice, you can [buy me a coffee ☕](https://buymeacoffee.com/onurcelep).
+If ostinato helps your practice, you can [buy me a coffee ☕](https://buymeacoffee.com/onurcelep).
