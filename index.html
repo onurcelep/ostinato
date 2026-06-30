@@ -162,6 +162,14 @@
   footer{max-width:720px;margin:4px auto 36px;padding:0 24px;color:var(--faint);font-size:11px;letter-spacing:.03em}
   footer a{color:var(--mut);text-decoration:none;border-bottom:1px solid var(--line-2)}
   footer a:hover{color:var(--accent)}
+  #installModal{position:fixed;inset:0;z-index:100;background:rgba(30,26,20,.45);display:flex;align-items:center;justify-content:center;padding:20px}
+  #installModal[hidden]{display:none}
+  .modal-box{position:relative;background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);max-width:440px;width:100%;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal-x{position:absolute;top:10px;right:12px;border:none;background:transparent;font-size:20px;color:var(--mut);padding:4px 8px}
+  .modal-title{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-bottom:14px}
+  #installSteps{font-size:13.5px;line-height:1.7;color:var(--ink)}
+  #installSteps b{color:var(--accent-2)}
+  #installSteps .shareico{display:inline-block;vertical-align:-3px;width:15px;height:15px;color:var(--accent-2)}
 
   /* ---- mobile / responsive ---- */
   @media (max-width:760px){
@@ -277,10 +285,19 @@
       </div>
     </div>
     <footer>
+      <a href="#" id="installLink">install app</a> ·
       runs entirely in your browser · files never leave your device · pitch &amp; tempo by
       <a href="https://github.com/cutterbl/SoundTouchJS" target="_blank" rel="noopener">SoundTouchJS</a> (LGPL)<span id="engine"></span>
     </footer>
   </main>
+</div>
+
+<div id="installModal" hidden>
+  <div class="modal-box">
+    <button class="modal-x" id="installClose" title="Close">&times;</button>
+    <div class="modal-title">Install Ostinato</div>
+    <div id="installSteps"></div>
+  </div>
 </div>
 
 <script id="st-core-main">
@@ -2346,6 +2363,24 @@ if (window.innerWidth <= 760) document.getElementById('app').classList.add('no-s
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
+
+/* Install helper: native prompt on desktop Chromium; step-by-step on iOS/others */
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const SHARE_ICO = '<svg class="shareico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/></svg>';
+if (isStandalone) $('installLink').style.display = 'none';   // already installed
+$('installLink').onclick = (e) => {
+  e.preventDefault();
+  if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.finally(() => { deferredPrompt = null; }); return; }
+  $('installSteps').innerHTML = isIOS
+    ? 'Open this page in <b>Safari</b>, tap the <b>Share</b> button ' + SHARE_ICO + ' at the bottom, then choose <b>Add to Home Screen</b>. It then runs full-screen and works offline.'
+    : 'In <b>Chrome / Edge / Brave</b>: click the <b>install icon</b> in the address bar, or open the menu and choose <b>Install page as app</b>.<br><br>In <b>Safari</b> (Mac): <b>File → Add to Dock</b>.';
+  $('installModal').hidden = false;
+};
+$('installClose').onclick = () => { $('installModal').hidden = true; };
+$('installModal').onclick = (e) => { if (e.target.id === 'installModal') $('installModal').hidden = true; };
 </script>
 </body>
 </html>
