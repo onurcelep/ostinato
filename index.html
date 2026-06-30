@@ -151,6 +151,27 @@
   footer{max-width:720px;margin:4px auto 36px;padding:0 24px;color:var(--faint);font-size:11px;letter-spacing:.03em}
   footer a{color:var(--mut);text-decoration:none;border-bottom:1px solid var(--line-2)}
   footer a:hover{color:var(--accent)}
+
+  /* ---- mobile / responsive ---- */
+  @media (max-width:760px){
+    #app{grid-template-columns:1fr}
+    /* history becomes a slide-in drawer below the top bar */
+    #sidebar{position:fixed;top:51px;left:0;bottom:0;width:84%;max-width:300px;z-index:60;background:var(--paper);
+             border-right:1px solid var(--line);box-shadow:6px 0 30px rgba(0,0,0,.18);
+             transform:translateX(0);transition:transform .22s ease}
+    #app.no-side #sidebar{transform:translateX(-100%);box-shadow:none}
+    .topbar{padding:12px 14px;gap:9px}
+    .topbar .title{font-size:12px;letter-spacing:.14em}
+    .wrap{padding:16px 14px}
+    .stage{gap:14px}
+    .coffee .ctxt{display:none}          /* keep just the cup icon to save space */
+    .coffee{padding:7px 9px}
+    .transport{flex-wrap:wrap}
+    .transport .time{margin-left:0}
+    .vol{margin-left:auto}
+    .card{padding:16px 16px}
+    .row .lab{font-size:12px}
+  }
 </style>
 </head>
 <body>
@@ -171,7 +192,7 @@
       <span class="grow"></span>
       <a class="coffee" href="https://buymeacoffee.com/onurcelep" target="_blank" rel="noopener" title="Support Ostinato">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h11v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9z"/><path d="M16 10h2.5a2 2 0 0 1 0 4H16"/><path d="M8.5 5c0 1-1 1-1 2M11.5 5c0 1-1 1-1 2"/></svg>
-        buy me a coffee
+        <span class="ctxt">buy me a coffee</span>
       </a>
       <input id="file" type="file" accept="video/*,audio/*" hidden />
     </div>
@@ -2262,7 +2283,7 @@ function renderHistory() {
       (s.label ? '<div class="meta" style="opacity:.7">' + esc(s.name) + '</div>' : '');
     el.querySelector('.del').onclick = (ev) => { ev.stopPropagation(); delete store[s.id]; saveStore(); idbDel(s.id); renderHistory(); };
     el.querySelector('.ren').onclick = (ev) => { ev.stopPropagation(); const nm = prompt('Name this session', s.label || s.name); if (nm != null) { s.label = nm.trim(); store[s.id] = s; saveStore(); renderHistory(); } };
-    el.onclick = () => openFromHistory(s.id);
+    el.onclick = () => { openFromHistory(s.id); if (window.innerWidth <= 760) $('app').classList.add('no-side'); };
     list.appendChild(el);
   });
 }
@@ -2304,6 +2325,7 @@ document.addEventListener('keydown', e => {
 $('vol').value = volume; updateMuteUI();
 showChooser();
 renderHistory();
+if (window.innerWidth <= 760) document.getElementById('app').classList.add('no-side');   // drawer collapsed on mobile
 </script>
 </body>
 </html>
