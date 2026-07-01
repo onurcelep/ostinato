@@ -75,15 +75,16 @@
   .workspace{display:flex;flex-direction:column;gap:16px}
   .center,.side{display:flex;flex-direction:column;gap:16px;min-width:0}
   .player{min-width:0}
-  @media (min-width:1024px){
-    .workspace{display:grid;grid-template-columns:minmax(0,1fr) 336px;gap:18px;align-items:start}
-  }
   #drop{border:1px dashed var(--line-2);border-radius:var(--r);height:min(46vh,440px);min-height:240px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--mut);cursor:pointer;transition:.15s;font-size:12.5px;letter-spacing:.03em}
   #drop:hover{border-color:var(--mut);color:var(--mut)}
   #drop.hover{border-color:var(--accent);color:var(--accent)}
   video{width:100%;max-height:54vh;background:#000;border-radius:var(--r);display:none}
   video.show{display:block}
   .vwrap{position:relative}
+  .vwrap:fullscreen{background:#000;display:flex;align-items:center;justify-content:center}
+  .vwrap:fullscreen video{max-height:100vh;height:100%;width:100%;object-fit:contain;border-radius:0}
+  .vwrap:-webkit-full-screen{background:#000}
+  .vwrap:-webkit-full-screen video{max-height:100vh;height:100%;width:100%;object-fit:contain;border-radius:0}
   .voverlay{position:absolute;left:0;right:0;bottom:14px;display:flex;justify-content:center;gap:8px;opacity:0;transition:opacity .15s;pointer-events:none}
   .vwrap:hover .voverlay{opacity:1}
   @media (hover:none){ .voverlay{display:none} }   /* touch devices: no sticky-hover overlay; use the Loops card */
@@ -252,6 +253,7 @@
               <button class="icon" id="muteBtn" title="Mute / unmute"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9.5v5h3.3L12 18V6L7.3 9.5z"/><path d="M15.5 9a3.3 3.3 0 0 1 0 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
               <input id="vol" class="volrange" type="range" min="0" max="1" step="0.01" value="1" title="Volume" />
             </span>
+            <button class="icon" id="fsBtn" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg></button>
           </div>
         </div>
           <div class="card loopcard">
@@ -2229,6 +2231,13 @@ $('back5').onclick = () => pSeek(pTime() - 5);
 $('fwd5').onclick = () => pSeek(Math.min(pDur(), pTime() + 5));
 $('vol').oninput = () => { volume = +$('vol').value; muted = false; localStorage.setItem('vlooper.vol', volume); applyVol(); updateMuteUI(); };
 $('muteBtn').onclick = () => { muted = !muted; applyVol(); updateMuteUI(); };
+$('fsBtn').onclick = () => {
+  if (document.fullscreenElement) { document.exitFullscreen(); return; }
+  const el = $('vwrap');
+  if (el.requestFullscreen) el.requestFullscreen();
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();   // iOS: native video fullscreen
+};
 v.onplay = () => setPlayUI(true);
 v.onpause = () => { setPlayUI(false); if (ac && ac.state === 'running') ac.suspend(); };   // stop audio graph when idle
 v.addEventListener('loadedmetadata', () => { if (cur) cur.dur = v.duration; updateAB(); });
