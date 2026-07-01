@@ -1983,17 +1983,36 @@ const ICON_MUTE  = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9.5
 /* =========================================================================
    PLAYER  (local <video>)
    ========================================================================= */
-const hasMedia = () => !!v.src;
-const pTime = () => v.currentTime;
-const pDur  = () => v.duration || 0;
-const pSeek = (t) => { v.currentTime = Math.max(0, t); };
-function play() {
-  if (totalSemis() !== 0) { ensureAudio(); route(); }   // engage Web Audio only when transposing
-  if (ac && ac.state === 'suspended') ac.resume();
-  v.play().catch(() => {});
+/* ---- engine state: decoded-buffer playback (SoundTouch tempo+pitch) + muted, synced video ---- */
+let ac = null, gainNode = null, shifter = null, buffer = null, bufferMode = false, engine = '';
+let volume = parseFloat(localStorage.getItem('vlooper.vol') || '1'); let muted = false;
+
+function ensureCtx() {
+  if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); gainNode = ac.createGain(); gainNode.connect(ac.destination); applyVol(); }
+  if (ac.state === 'suspended') ac.resume();
 }
-function pause() { v.pause(); }
-function setPlayUI(playing) { $('play').innerHTML = playing ? ICON_PAUSE : ICON_PLAY; }
+const hasMedia = () => bufferMode ? !!buffer : !!v.src;
+const pDur  = () => bufferMode ? (shifter ? shifter.duration : 0) : (v.duration || 0);
+const pTime = () => bufferMode ? (shifter ? shifter.percentagePlayed / 100 * shifter.duration : 0) : v.currentTime;
+const pPaused = () => v.paused;
+function pSeek(t) {
+  const d = pDur(); t = Math.max(0, Math.min(t, d || t));
+  if (bufferMode && shifter) {
+    shifter.percentagePlayed = d ? (t / d * 100) : 0;
+    try { shifter._soundtouch.clear(); } catch (e) {}   // drop buffered output → clean seek/loop
+  }
+  try { v.currentTime = t; } catch (e) {}
+}
+function play() {
+  if (bufferMode) { ensureCtx(); if (shifter) { try { shifter.disconnect(); } catch (e) {} shifter.connect(gainNode); } }
+  else if (ac && ac.state === 'suspended') ac.resume();
+  v.play().catch(() => {});                 // muted video plays for the picture; audio is the engine
+}
+function pause() {
+  if (bufferMode && shifter) { try { shifter.disconnect(); } catch (e) {} }
+  v.pause();
+}
+function setPlayUI(p) { $('play').innerHTML = p ? ICON_PAUSE : ICON_PLAY; }
 const startPlayback = play;
 
 function setControls(on) {
@@ -2005,95 +2024,16 @@ function showChooser() { $('drop').style.display = ''; $('vwrap').style.display 
 function showPlayer() { $('drop').style.display = 'none'; $('vwrap').style.display = ''; setControls(true); }
 
 /* =========================================================================
-   AUDIO  —  AudioWorklet + SoundTouch, with synchronous bypass for sync.
-   Core graph is built once; the pitch worklet is loaded lazily and only
-   spliced in when you actually transpose (pitch != 0).
+   ENGINE — the file audio is decoded and played through SoundTouch so tempo
+   (speed) and pitch (transpose) work together WITHOUT touching the videos
+   playbackRate (which iOS Safari garbles). The video is muted and just follows.
    ========================================================================= */
-let ac, srcNode, pitchNode, gainNode, audioOn = false, pitchActive = false, engine = '';
-let volume = parseFloat(localStorage.getItem('vlooper.vol') || '1'); let muted = false;
-
-function ensureAudio() {
-  if (audioOn) return;
-  try {
-    ac = new (window.AudioContext || window.webkitAudioContext)();
-    srcNode = ac.createMediaElementSource(v);   // exactly once
-    gainNode = ac.createGain();
-    gainNode.connect(ac.destination);
-    srcNode.connect(gainNode);                  // bypass path: zero added latency, perfect sync
-    audioOn = true; pitchActive = false;
-    applyVol();
-  } catch (e) { engine = 'audio error: ' + e.message; setEngine(); }
-}
-
-// Build a pitch-shift node. Prefer AudioWorklet (future-proof; works when hosted),
-// fall back to ScriptProcessor (works locally from file://, where worklets are blocked).
-async function makePitch() {
-  if (pitchNode) return pitchNode;
-  try {
-    const code = $('worklet-src').textContent;
-    const url = URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
-    await ac.audioWorklet.addModule(url);
-    const n = new AudioWorkletNode(ac, 'st-pitch', { outputChannelCount: [2] });
-    n._set = s => n.port.postMessage({ semitones: s });
-    n._reset = () => n.port.postMessage({ reset: true });
-    pitchNode = n; engine = 'AudioWorklet';
-  } catch (e) {
-    try { pitchNode = makeSP(); engine = 'ScriptProcessor'; }
-    catch (e2) { engine = 'pitch unavailable: ' + e2.message; }
-  }
-  if (pitchNode && pitchNode._set) pitchNode._set(totalSemis());
-  setEngine();
-  return pitchNode;
-}
-
-// Main-thread SoundTouch via ScriptProcessor (fallback). Mirrors the worklet logic.
-function makeSP() {
-  const st = new SoundTouch(); st.tempo = 1; st.rate = 1; st.pitchSemitones = totalSemis();
-  const BS = 4096, scratch = new Float32Array(BS * 2), recv = new Float32Array(BS * 8);
-  const QCAP = 1 << 19, q = new Float32Array(QCAP); let qHead = 0, qTail = 0;
-  const node = ac.createScriptProcessor(BS, 2, 2);
-  node.onaudioprocess = e => {
-    const ib = e.inputBuffer, ob = e.outputBuffer, n = ib.length;
-    const inL = ib.getChannelData(0), inR = ib.numberOfChannels > 1 ? ib.getChannelData(1) : inL;
-    for (let i = 0; i < n; i++) { scratch[i * 2] = inL[i]; scratch[i * 2 + 1] = inR[i]; }
-    st.inputBuffer.putSamples(scratch, 0, n); st.process();
-    let avail = Math.min(st.outputBuffer.frameCount, recv.length >> 1);
-    if (avail > 0) {
-      st.outputBuffer.receiveSamples(recv, avail);
-      const cnt = avail * 2;
-      if (qTail + cnt > QCAP) { q.copyWithin(0, qHead, qTail); qTail -= qHead; qHead = 0; }
-      if (qTail + cnt <= QCAP) { q.set(recv.subarray(0, cnt), qTail); qTail += cnt; }
-    }
-    const got = Math.min(n * 2, qTail - qHead);
-    const oL = ob.getChannelData(0), oR = ob.getChannelData(1);
-    for (let i = 0; i < n; i++) { const h = i * 2 < got; oL[i] = h ? q[qHead + i * 2] : 0; oR[i] = h ? q[qHead + i * 2 + 1] : 0; }
-    qHead += got;
-  };
-  node._set = s => { st.pitchSemitones = s; };
-  node._reset = () => { qHead = qTail = 0; if (st.clear) st.clear(); };
-  return node;
-}
-
-async function route() {
-  if (!audioOn) return;
-  const want = totalSemis() !== 0;
-  if (want) { await makePitch(); if (!pitchNode) return; }
-  if (want === pitchActive) return;
-  try { srcNode.disconnect(); } catch (e) {}
-  try { if (pitchNode) pitchNode.disconnect(); } catch (e) {}
-  if (want) { if (pitchNode._reset) pitchNode._reset(); srcNode.connect(pitchNode); pitchNode.connect(gainNode); }
-  else { srcNode.connect(gainNode); }
-  pitchActive = want;
-}
-function totalSemis() { return (+$('trans').value) + (+$('pitch').value) / 100; }
-function applyPitch() {
-  if (totalSemis() !== 0) { ensureAudio(); if (ac && ac.state === 'suspended') ac.resume(); }   // create graph on first transpose
-  if (pitchNode && pitchNode._set) pitchNode._set(totalSemis());
-  route();
-}
+function totalSemis() { return (+$("trans").value) + (+$("pitch").value) / 100; }
+function applyPitch() { if (bufferMode && shifter) shifter.pitchSemitones = totalSemis(); }
 function applyVol() { if (gainNode) gainNode.gain.value = muted ? 0 : volume; else v.volume = muted ? 0 : volume; }
+function setPitchEnabled(en) { $("trans").disabled = !en; $("pitch").disabled = !en; }
 function updateMuteUI() { const b = $('muteBtn'); b.innerHTML = (muted || volume === 0) ? ICON_MUTE : ICON_VOL; b.classList.toggle('muted', muted); }
-function setEngine() { const el = $('engine'); if (el) el.textContent = engine ? ' · pitch: ' + engine : ''; }
+function setEngine() { const el = $('engine'); if (el) el.textContent = engine ? ' · ' + engine : ''; }
 
 /* =========================================================================
    STATE + PERSISTENCE
@@ -2181,13 +2121,28 @@ function applySession() {
   loopOn = !!cur.loopOn; sections = cur.sections || []; activeSec = null;
   applyAll(); renderSections(); updateAB(); persist();
 }
-function openMedia(blob, id, name, size, sessionData) {
+async function openMedia(blob, id, name, size, sessionData) {
   curBlob = blob;
   v.src = URL.createObjectURL(blob);
   v.classList.add('show');
   cur = sessionData || { id, name, size };
   cur.name = name; cur.size = size; cur.saved = !!sessionData;   // "saved" only if it came from a stored session
-  applySession();
+
+  // Decode the audio for the SoundTouch engine (tempo+pitch together). Fall back to native if it won't decode.
+  bufferMode = false; buffer = null;
+  if (shifter) { try { shifter.disconnect(); } catch (e) {} shifter = null; }
+  try {
+    ensureCtx();
+    buffer = await ac.decodeAudioData(await blob.arrayBuffer());
+    shifter = new PitchShifter(ac, buffer, 4096);
+    bufferMode = true; v.muted = true;                 // audio from engine; video muted, visual only
+    engine = 'engine ready';
+  } catch (e) {
+    bufferMode = false; v.muted = false;
+    engine = 'native — transpose off (audio didn’t decode)';
+  }
+  setPitchEnabled(bufferMode); setEngine();
+  applySession();     // applyAll → applyPitch/applySpeed onto the shifter
   showPlayer();
   play();
   updateSaveUI();
@@ -2234,8 +2189,21 @@ $('bpm').oninput = () => { applyBpm(); persist(); };
 
 function updateResets() { document.querySelectorAll('[data-reset]').forEach(b => { const id = b.dataset.reset; b.classList.toggle('show', (+$(id).value) !== DEF[id]); }); }
 function applyPitchLabels() { $('transV').textContent = signed(+$('trans').value); $('pitchV').textContent = signed(+$('pitch').value); updateResets(); }
-function applySpeed() { v.playbackRate = (+$('speed').value) / 100; $('speedV').textContent = $('speed').value + '%'; applyBpm(); updateResets(); }
-function applyKeepPitch() { const on = $('keepPitch').checked; v.preservesPitch = v.mozPreservesPitch = v.webkitPreservesPitch = on; }
+function applySpeed() {
+  const speed = (+$('speed').value) / 100;
+  const keep = $('keepPitch').checked;
+  if (bufferMode && shifter) {
+    if (keep) { shifter.rate = 1; shifter.tempo = speed; }   // tempo = pitch-preserving speed
+    else { shifter.tempo = 1; shifter.rate = speed; }        // rate = tape (pitch follows speed)
+  }
+  v.playbackRate = speed;                                    // muted video follows for the picture
+  $('speedV').textContent = Math.round(speed * 100) + '%';
+  applyBpm(); updateResets();
+}
+function applyKeepPitch() {
+  if (!bufferMode) { const on = $('keepPitch').checked; v.preservesPitch = v.mozPreservesPitch = v.webkitPreservesPitch = on; }
+  applySpeed();   // keep-pitch decides whether speed uses tempo (preserve) or rate (tape)
+}
 function applyBpm() { const base = +$('bpm').value; $('bpmOut').textContent = base > 0 ? '→ ' + Math.round(base * (+$('speed').value) / 100) + ' bpm' : ''; }
 function applyAll() { applyPitchLabels(); applyPitch(); applySpeed(); applyKeepPitch(); applyBpm(); }
 function signed(n) { return (n > 0 ? '+' : '') + n; }
@@ -2245,10 +2213,10 @@ function signed(n) { return (n > 0 ? '+' : '') + n; }
    ========================================================================= */
 function togglePlay() {
   if (!v.src) return $('file').click();
-  if (v.paused) play(); else v.pause();
+  if (v.paused) play(); else pause();
 }
 $('play').onclick = togglePlay;
-v.addEventListener('click', () => { if (v.src) { if (v.paused) play(); else v.pause(); } });
+v.addEventListener('click', () => { if (v.src) { if (v.paused) play(); else pause(); } });
 $('ovA').onclick = () => $('setA').click();
 $('ovB').onclick = () => $('setB').click();
 $('ovLoop').onclick = () => $('loopBtn').click();
@@ -2264,28 +2232,31 @@ $('fsBtn').onclick = () => {
   else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
   else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();   // iOS: native video fullscreen
 };
-v.onplay = () => setPlayUI(true);
-v.onpause = () => { setPlayUI(false); if (ac && ac.state === 'running') ac.suspend(); };   // stop audio graph when idle
+v.onplay = () => { setPlayUI(true); if ($('followPlay').checked) startTimer(); };
+v.onpause = () => { setPlayUI(false); if (!bufferMode && ac && ac.state === 'running') ac.suspend(); if ($('followPlay').checked) pauseTimer(); };
 v.addEventListener('loadedmetadata', () => { if (cur) cur.dur = v.duration; updateAB(); });
 let lastT = 0, frameN = 0;
 function tick() {
   if (hasMedia()) {
     const t = pTime();
     // Loop: jump back the instant we reach B. Guard against re-firing during the seek.
-    if (loopOn && A != null && B != null && !v.paused && t >= B && t >= lastT) {
+    if (loopOn && A != null && B != null && !pPaused() && t >= B && t >= lastT) {
       pSeek(A);
-      if (pitchActive && pitchNode && pitchNode._reset) pitchNode._reset();   // flush stale buffered audio → no echo
       bumpRep();
       lastT = A;
     } else {
       lastT = t;
+    }
+    // keep the muted video aligned to the audio engine
+    if (bufferMode && !pPaused() && !v.seeking && Math.abs(v.currentTime - t) > 0.3) {
+      try { v.currentTime = t; } catch (e) {}
     }
     if ((frameN++ & 3) === 0) {   // repaint the bar/time only ~15×/s to spare the decoder
       $('played').style.width = pct(t) + '%';
       $('time').textContent = fmt(t) + ' / ' + fmt(pDur());
     }
   }
-  requestAnimationFrame(tick);   // loop boundary still checked every frame (tight)
+  requestAnimationFrame(tick);   // loop boundary checked every frame (tight)
 }
 requestAnimationFrame(tick);
 $('bar').onclick = e => { if (!pDur()) return; const r = e.currentTarget.getBoundingClientRect(); pSeek((e.clientX - r.left) / r.width * pDur()); };
@@ -2522,8 +2493,6 @@ $('modeDown').onclick = () => { TZ.mode = 'down'; $('modeDown').classList.add('o
 $('tMinus').onclick = () => { TZ.targetMin = Math.max(1, TZ.targetMin - 1); $('targetMin').textContent = TZ.targetMin; updateTimer(); };
 $('tPlus').onclick = () => { TZ.targetMin = Math.min(180, TZ.targetMin + 1); $('targetMin').textContent = TZ.targetMin; updateTimer(); };
 $('repReset').onclick = () => { reps = 0; $('repCount').textContent = '0'; };
-v.addEventListener('play', () => { if ($('followPlay').checked) startTimer(); });
-v.addEventListener('pause', () => { if ($('followPlay').checked) pauseTimer(); });
 setInterval(() => { updateTimer(); if (TZ.running) renderToday(); }, 250);
 renderToday();
 
