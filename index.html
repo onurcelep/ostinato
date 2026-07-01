@@ -56,7 +56,7 @@
 
   /* main */
   main{display:flex;flex-direction:column;min-height:100vh}
-  .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:15px 24px;background:rgba(244,238,225,.9);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;padding:14px 24px;background:rgba(244,238,225,.9);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
   .brand{display:inline-flex;align-items:center;gap:9px;cursor:pointer}
   .brand .mark{width:13px;height:22px;color:var(--accent);flex:none}
   .coffee{display:inline-flex;align-items:center;gap:7px;color:var(--mut);text-decoration:none;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:6px 12px;font-size:12px}
@@ -157,6 +157,7 @@
   footer a:hover{color:var(--accent)}
   /* practice timer */
   .prow{display:flex;align-items:center;gap:10px;margin:12px 0}
+  .prow[hidden]{display:none}   /* countdown row only shows in countdown mode */
   .prow:first-of-type{margin-top:0}
   .prow .plab{color:var(--mut);font-size:12px;min-width:74px}
   .ptime{font-size:30px;font-variant-numeric:tabular-nums;letter-spacing:.02em;color:var(--ink)}
@@ -208,6 +209,7 @@
       </span>
       <span class="tagline">a looping practice tool</span>
       <span class="grow"></span>
+      <button id="openBtn" class="primary" title="Open a new video or audio file">open file</button>
       <button id="loadSessionBtn" title="Open a saved session">load session</button>
       <button id="saveSessionBtn" title="Save this file + its loops & settings" disabled>save session</button>
       <a class="coffee" href="https://buymeacoffee.com/onurcelep" target="_blank" rel="noopener" title="Support Etude">
@@ -2191,9 +2193,13 @@ function openMedia(blob, id, name, size, sessionData) {
   updateSaveUI();
 }
 
-// Explicitly save the current session (video bytes + loops + settings).
+// Explicitly save the current session (video bytes + loops + settings), with a name.
 function saveSession() {
   if (!cur || !v.src || !curBlob) return;
+  const suggested = cur.label || cur.name || 'Session';
+  const name = prompt('Name this session:', suggested);
+  if (name === null) return;                 // cancelled — don't save
+  cur.label = name.trim() || suggested;
   cur.saved = true;
   persist(); saveStore();          // write settings now that it's saved
   idbPut(cur.id, curBlob);         // store the file bytes for instant reopen
@@ -2395,6 +2401,7 @@ function drawMarks() {
 /* =========================================================================
    HISTORY SIDEBAR
    ========================================================================= */
+$('openBtn').onclick = () => $('file').click();
 $('loadSessionBtn').onclick = () => { renderHistory(); $('sessionsModal').hidden = false; };
 $('sessionsClose').onclick = () => { $('sessionsModal').hidden = true; };
 $('sessionsModal').onclick = (e) => { if (e.target.id === 'sessionsModal') $('sessionsModal').hidden = true; };
