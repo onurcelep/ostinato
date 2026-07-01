@@ -43,14 +43,8 @@
   .mut{color:var(--mut)}
 
   #app{position:relative;min-height:100vh}
-  /* History as a slide-in drawer (all sizes) */
-  #sidebar{position:fixed;top:53px;left:0;bottom:0;width:280px;max-width:82%;z-index:60;overflow:auto;display:flex;flex-direction:column;
-           background:var(--paper);border-right:1px solid var(--line);box-shadow:8px 0 34px rgba(0,0,0,.14);
-           transform:translateX(0);transition:transform .22s ease}
-  #app.no-side #sidebar{transform:translateX(-100%);box-shadow:none}
-  .side-h{display:flex;align-items:center;gap:8px;padding:22px 18px 12px;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut)}
-  .side-h .grow{flex:1}
-  #histList{padding:2px 10px 16px}
+  /* saved-sessions list (inside the modal) */
+  #histList{max-height:min(60vh,440px);overflow:auto;margin:0 -6px}
   .hist{padding:10px 12px;border-radius:var(--r-sm);cursor:pointer;border:1px solid transparent;margin-bottom:2px;transition:background .12s}
   .hist:hover{background:var(--paper-2)}
   .hist .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:34px}
@@ -177,6 +171,9 @@
   #installModal{position:fixed;inset:0;z-index:100;background:rgba(30,26,20,.45);display:flex;align-items:center;justify-content:center;padding:20px}
   #installModal[hidden]{display:none}
   .modal-box{position:relative;background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);max-width:440px;width:100%;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal-lg{max-width:540px}
+  .modal-title{display:flex;align-items:center;gap:10px}
+  .modal-title .grow{flex:1}
   .modal-x{position:absolute;top:10px;right:12px;border:none;background:transparent;font-size:20px;color:var(--mut);padding:4px 8px}
   .modal-title{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-bottom:14px}
   #installSteps{font-size:13.5px;line-height:1.7;color:var(--ink)}
@@ -202,14 +199,8 @@
 </head>
 <body>
 <div id="app">
-  <aside id="sidebar">
-    <div class="side-h">Sessions <span class="grow"></span><button class="icon" id="clearHist" title="Delete all saved sessions">🗑</button></div>
-    <div id="histList"><div class="empty">No saved sessions yet. Open a file, set up your loops, then press “save session”.</div></div>
-  </aside>
-
   <main>
     <div class="topbar">
-      <button class="icon" id="toggleSide" title="Saved sessions">☰</button>
       <span class="brand" id="brand" title="Open a new file">
         <svg class="mark" viewBox="0 0 13 24" aria-hidden="true"><rect x="1" y="4" width="2.6" height="16" rx="0.7" fill="currentColor"/><rect x="4.6" y="4" width="1.3" height="16" rx="0.5" fill="currentColor"/><circle cx="8" cy="9" r="1.3" fill="currentColor"/><circle cx="8" cy="15" r="1.3" fill="currentColor"/></svg>
         <span class="title">ETUDE</span>
@@ -217,6 +208,7 @@
       </span>
       <span class="tagline">a looping practice tool</span>
       <span class="grow"></span>
+      <button id="loadSessionBtn" title="Open a saved session">load session</button>
       <button id="saveSessionBtn" title="Save this file + its loops & settings" disabled>save session</button>
       <a class="coffee" href="https://buymeacoffee.com/onurcelep" target="_blank" rel="noopener" title="Support Etude">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h11v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9z"/><path d="M16 10h2.5a2 2 0 0 1 0 4H16"/><path d="M8.5 5c0 1-1 1-1 2M11.5 5c0 1-1 1-1 2"/></svg>
@@ -348,6 +340,14 @@
     <button class="modal-x" id="installClose" title="Close">&times;</button>
     <div class="modal-title">Install Etude</div>
     <div id="installSteps"></div>
+  </div>
+</div>
+
+<div id="sessionsModal" hidden>
+  <div class="modal-box modal-lg">
+    <button class="modal-x" id="sessionsClose" title="Close">&times;</button>
+    <div class="modal-title">Saved sessions <span class="grow"></span><button class="icon" id="clearHist" title="Delete all saved sessions">🗑</button></div>
+    <div id="histList"><div class="empty">No saved sessions yet. Open a file, set up your loops, then press “save session”.</div></div>
   </div>
 </div>
 
@@ -2384,7 +2384,9 @@ function drawMarks() {
 /* =========================================================================
    HISTORY SIDEBAR
    ========================================================================= */
-$('toggleSide').onclick = () => $('app').classList.toggle('no-side');
+$('loadSessionBtn').onclick = () => { renderHistory(); $('sessionsModal').hidden = false; };
+$('sessionsClose').onclick = () => { $('sessionsModal').hidden = true; };
+$('sessionsModal').onclick = (e) => { if (e.target.id === 'sessionsModal') $('sessionsModal').hidden = true; };
 $('clearHist').onclick = () => { if (confirm('Clear all saved sessions and stored videos?')) { store = {}; saveStore(); idbClear(); renderHistory(); } };
 function renderHistory() {
   const list = $('histList');
@@ -2400,7 +2402,7 @@ function renderHistory() {
       (s.label ? '<div class="meta" style="opacity:.7">' + esc(s.name) + '</div>' : '');
     el.querySelector('.del').onclick = (ev) => { ev.stopPropagation(); delete store[s.id]; saveStore(); idbDel(s.id); renderHistory(); };
     el.querySelector('.ren').onclick = (ev) => { ev.stopPropagation(); const nm = prompt('Name this session', s.label || s.name); if (nm != null) { s.label = nm.trim(); store[s.id] = s; saveStore(); renderHistory(); } };
-    el.onclick = () => { openFromHistory(s.id); $('app').classList.add('no-side'); };
+    el.onclick = () => { openFromHistory(s.id); $('sessionsModal').hidden = true; };
     list.appendChild(el);
   });
 }
@@ -2444,7 +2446,6 @@ $('saveSessionBtn').onclick = saveSession;
 updateSaveUI();
 showChooser();
 renderHistory();
-document.getElementById('app').classList.add('no-side');   // sessions drawer starts collapsed
 
 /* =========================================================================
    PRACTICE TIMER — stopwatch / countdown that follows playback, a daily
