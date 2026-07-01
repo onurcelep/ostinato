@@ -71,9 +71,8 @@
   .tagline{color:var(--mut);font-size:11px;letter-spacing:.03em;border-left:1px solid var(--line-2);padding-left:13px;margin-left:5px}
   @media (max-width:900px){ .tagline{display:none} }
   .wrap{max-width:1040px;width:100%;margin:0 auto;padding:30px 24px}
-  .stage{display:grid;grid-template-columns:minmax(0,1fr) 332px;gap:18px;align-items:start}
+  .stage{display:flex;flex-direction:column;gap:16px}
   .player{min-width:0}
-  @media (max-width:840px){ .stage{grid-template-columns:1fr} }
   #drop{border:1px dashed var(--line-2);border-radius:var(--r);aspect-ratio:16/9;max-height:54vh;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--mut);cursor:pointer;transition:.15s;font-size:12.5px;letter-spacing:.03em}
   #drop:hover{border-color:var(--mut);color:var(--mut)}
   #drop.hover{border-color:var(--accent);color:var(--accent)}
@@ -121,15 +120,10 @@
   .card-title{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin-bottom:16px;display:flex;align-items:center;gap:10px}
   .card-title .grow{flex:1}
 
-  /* Pitch & Speed: two-line rows (label+value on top, slider below) so they read in a narrow column */
-  .pitchcard{padding:24px 22px}
-  .pitchcard .card-title{margin-bottom:26px}
-  .pitchcard .row{display:flex;flex-direction:column;align-items:stretch;gap:11px;margin:0 0 34px}
-  .pitchcard .row:last-of-type{margin-bottom:0}
-  .pitchcard .opts{margin-top:30px}
-  .rowhead{display:flex;align-items:center;gap:8px}
-  .rowctl{display:flex;align-items:center;gap:10px}
-  .row .lab{color:var(--mut);font-size:12.5px;text-transform:lowercase;letter-spacing:.02em}
+  /* Pitch & Speed: compact single-line rows (full width) */
+  .row{display:flex;align-items:center;gap:13px;margin:14px 0}
+  .row:first-of-type{margin-top:0}
+  .row .lab{width:82px;color:var(--mut);font-size:12.5px;text-transform:lowercase;letter-spacing:.02em}
   .row .step{width:22px;height:22px;border:none;background:transparent;color:var(--mut);font-size:15px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm)}
   .row .step:hover{color:var(--accent);background:var(--paper-2)}
   .row .val{width:46px;text-align:right;color:var(--ink);font-size:13px}
@@ -267,16 +261,28 @@
         <div class="card pitchcard">
           <div class="card-title">Pitch &amp; Speed</div>
           <div class="row">
-            <div class="rowhead"><span class="lab">Transpose</span><span class="grow"></span><span class="val" id="transV">0</span><span class="unit">st</span><button class="reset" data-reset="trans" title="Reset to default">reset</button></div>
-            <div class="rowctl"><button class="step" data-delta="trans:-1">&minus;</button><input id="trans" type="range" min="-12" max="12" step="1" value="0" /><button class="step" data-delta="trans:1">+</button></div>
+            <span class="lab">Transpose</span>
+            <button class="step" data-delta="trans:-1">&minus;</button>
+            <input id="trans" type="range" min="-12" max="12" step="1" value="0" />
+            <button class="step" data-delta="trans:1">+</button>
+            <span class="val" id="transV">0</span><span class="unit">st</span>
+            <button class="reset" data-reset="trans" title="Reset to default">reset</button>
           </div>
           <div class="row">
-            <div class="rowhead"><span class="lab">Pitch</span><span class="grow"></span><span class="val" id="pitchV">0</span><span class="unit">&cent;</span><button class="reset" data-reset="pitch" title="Reset to default">reset</button></div>
-            <div class="rowctl"><button class="step" data-delta="pitch:-5">&minus;</button><input id="pitch" type="range" min="-100" max="100" step="1" value="0" /><button class="step" data-delta="pitch:5">+</button></div>
+            <span class="lab">Pitch</span>
+            <button class="step" data-delta="pitch:-5">&minus;</button>
+            <input id="pitch" type="range" min="-100" max="100" step="1" value="0" />
+            <button class="step" data-delta="pitch:5">+</button>
+            <span class="val" id="pitchV">0</span><span class="unit">&cent;</span>
+            <button class="reset" data-reset="pitch" title="Reset to default">reset</button>
           </div>
           <div class="row">
-            <div class="rowhead"><span class="lab">Speed</span><span class="grow"></span><span class="val" id="speedV">100%</span><span class="unit" id="bpmOut"></span><button class="reset" data-reset="speed" title="Reset to default">reset</button></div>
-            <div class="rowctl"><button class="step" data-delta="speed:-5">&minus;</button><input id="speed" type="range" min="25" max="200" step="5" value="100" /><button class="step" data-delta="speed:5">+</button></div>
+            <span class="lab">Speed</span>
+            <button class="step" data-delta="speed:-5">&minus;</button>
+            <input id="speed" type="range" min="25" max="200" step="5" value="100" />
+            <button class="step" data-delta="speed:5">+</button>
+            <span class="val" id="speedV">100%</span><span class="unit" id="bpmOut"></span>
+            <button class="reset" data-reset="speed" title="Reset to default">reset</button>
           </div>
           <div class="opts">
             <label><input type="checkbox" id="keepPitch" checked /> keep pitch</label>
@@ -1979,7 +1985,11 @@ const hasMedia = () => !!v.src;
 const pTime = () => v.currentTime;
 const pDur  = () => v.duration || 0;
 const pSeek = (t) => { v.currentTime = Math.max(0, t); };
-function play() { ensureAudio(); if (ac && ac.state === 'suspended') ac.resume(); route(); v.play().catch(() => {}); }
+function play() {
+  if (totalSemis() !== 0) { ensureAudio(); route(); }   // engage Web Audio only when transposing
+  if (ac && ac.state === 'suspended') ac.resume();
+  v.play().catch(() => {});
+}
 function pause() { v.pause(); }
 function setPlayUI(playing) { $('play').innerHTML = playing ? ICON_PAUSE : ICON_PLAY; }
 const startPlayback = play;
@@ -2074,8 +2084,12 @@ async function route() {
   pitchActive = want;
 }
 function totalSemis() { return (+$('trans').value) + (+$('pitch').value) / 100; }
-function applyPitch() { if (pitchNode && pitchNode._set) pitchNode._set(totalSemis()); route(); }
-function applyVol() { if (gainNode) gainNode.gain.value = muted ? 0 : volume; }
+function applyPitch() {
+  if (totalSemis() !== 0) { ensureAudio(); if (ac && ac.state === 'suspended') ac.resume(); }   // create graph on first transpose
+  if (pitchNode && pitchNode._set) pitchNode._set(totalSemis());
+  route();
+}
+function applyVol() { if (gainNode) gainNode.gain.value = muted ? 0 : volume; else v.volume = muted ? 0 : volume; }
 function updateMuteUI() { const b = $('muteBtn'); b.innerHTML = (muted || volume === 0) ? ICON_MUTE : ICON_VOL; b.classList.toggle('muted', muted); }
 function setEngine() { const el = $('engine'); if (el) el.textContent = engine ? ' · pitch: ' + engine : ''; }
 
