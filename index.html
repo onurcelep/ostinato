@@ -2261,14 +2261,25 @@ $('fsBtn').onclick = () => {
 v.onplay = () => setPlayUI(true);
 v.onpause = () => { setPlayUI(false); if (ac && ac.state === 'running') ac.suspend(); };   // stop audio graph when idle
 v.addEventListener('loadedmetadata', () => { if (cur) cur.dur = v.duration; updateAB(); });
+let lastT = 0;
 function tick() {
-  if (!hasMedia()) return;
-  const t = pTime();
-  if (loopOn && A != null && B != null && !v.paused && t >= B) { pSeek(A); bumpRep(); }   // loop + count a rep
-  $('played').style.width = pct(t) + '%';
-  $('time').textContent = fmt(t) + ' / ' + fmt(pDur());
+  if (hasMedia()) {
+    const t = pTime();
+    // Loop: jump back the instant we reach B. Guard against re-firing during the seek.
+    if (loopOn && A != null && B != null && !v.paused && t >= B && t >= lastT) {
+      pSeek(A);
+      if (pitchActive && pitchNode && pitchNode._reset) pitchNode._reset();   // flush stale buffered audio → no echo
+      bumpRep();
+      lastT = A;
+    } else {
+      lastT = t;
+    }
+    $('played').style.width = pct(t) + '%';
+    $('time').textContent = fmt(t) + ' / ' + fmt(pDur());
+  }
+  requestAnimationFrame(tick);   // ~16ms: tight loop boundary, minimal overshoot
 }
-setInterval(tick, 100);
+requestAnimationFrame(tick);
 $('bar').onclick = e => { if (!pDur()) return; const r = e.currentTarget.getBoundingClientRect(); pSeek((e.clientX - r.left) / r.width * pDur()); };
 function pct(t) { return Math.max(0, Math.min(100, t / (pDur() || 1) * 100)); }
 
