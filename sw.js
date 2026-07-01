@@ -1,6 +1,6 @@
-/* Ostinato service worker — offline app shell.
+/* Etude service worker — offline app shell.
    Bump CACHE when you want clients to refresh cached assets. */
-const CACHE = 'ostinato-v1';
+const CACHE = 'etude-v1';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {

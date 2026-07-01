@@ -1,10 +1,10 @@
-# 𝄆 ostinato 𝄇
+# 𝄆 etude 𝄇
 
 **A private, offline practice looper for musicians.** Open a local video or audio file, loop a passage, slow it down, and change the key — all in your browser. Nothing is uploaded; your files never leave your device.
 
-> *ostinato* — a musical pattern that repeats persistently. That's the whole idea.
+> *étude* — a piece written to practice a skill. That's the whole idea.
 
-**▶ Live:** https://onurcelep.github.io/ostinato/
+**▶ Live:** https://onurcelep.github.io/etude/
 
 ## Features
 
@@ -19,7 +19,7 @@
 
 ## Use it
 
-Open **https://onurcelep.github.io/ostinato/** (or open `index.html` directly).
+Open **https://onurcelep.github.io/etude/** (or open `index.html` directly).
 Drop a file (or click to browse), set your loop, and practice.
 
 **Install (optional):** on desktop, use your browser's *Install* option; on mobile, *Share → Add to Home Screen*. It then works fully offline.
@@ -37,4 +37,4 @@ It bundles **SoundTouchJS**, which is licensed under **LGPL-2.1**; its notice is
 
 ## Support
 
-If ostinato helps your practice, you can [buy me a coffee ☕](https://buymeacoffee.com/onurcelep).
+If etude helps your practice, you can [buy me a coffee ☕](https://buymeacoffee.com/onurcelep).
