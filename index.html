@@ -2267,7 +2267,7 @@ $('fsBtn').onclick = () => {
 v.onplay = () => setPlayUI(true);
 v.onpause = () => { setPlayUI(false); if (ac && ac.state === 'running') ac.suspend(); };   // stop audio graph when idle
 v.addEventListener('loadedmetadata', () => { if (cur) cur.dur = v.duration; updateAB(); });
-let lastT = 0;
+let lastT = 0, frameN = 0;
 function tick() {
   if (hasMedia()) {
     const t = pTime();
@@ -2280,10 +2280,12 @@ function tick() {
     } else {
       lastT = t;
     }
-    $('played').style.width = pct(t) + '%';
-    $('time').textContent = fmt(t) + ' / ' + fmt(pDur());
+    if ((frameN++ & 3) === 0) {   // repaint the bar/time only ~15×/s to spare the decoder
+      $('played').style.width = pct(t) + '%';
+      $('time').textContent = fmt(t) + ' / ' + fmt(pDur());
+    }
   }
-  requestAnimationFrame(tick);   // ~16ms: tight loop boundary, minimal overshoot
+  requestAnimationFrame(tick);   // loop boundary still checked every frame (tight)
 }
 requestAnimationFrame(tick);
 $('bar').onclick = e => { if (!pDur()) return; const r = e.currentTarget.getBoundingClientRect(); pSeek((e.clientX - r.left) / r.width * pDur()); };
