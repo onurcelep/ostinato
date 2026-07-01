@@ -203,13 +203,13 @@
 <body>
 <div id="app">
   <aside id="sidebar">
-    <div class="side-h">History <span class="grow"></span><button class="icon" id="clearHist" title="Clear history">🗑</button></div>
-    <div id="histList"><div class="empty">No sessions yet. Open a video to start.</div></div>
+    <div class="side-h">Sessions <span class="grow"></span><button class="icon" id="clearHist" title="Delete all saved sessions">🗑</button></div>
+    <div id="histList"><div class="empty">No saved sessions yet. Open a file, set up your loops, then press “save session”.</div></div>
   </aside>
 
   <main>
     <div class="topbar">
-      <button class="icon" id="toggleSide" title="Show / hide history">☰</button>
+      <button class="icon" id="toggleSide" title="Saved sessions">☰</button>
       <span class="brand" id="brand" title="Open a new file">
         <svg class="mark" viewBox="0 0 13 24" aria-hidden="true"><rect x="1" y="4" width="2.6" height="16" rx="0.7" fill="currentColor"/><rect x="4.6" y="4" width="1.3" height="16" rx="0.5" fill="currentColor"/><circle cx="8" cy="9" r="1.3" fill="currentColor"/><circle cx="8" cy="15" r="1.3" fill="currentColor"/></svg>
         <span class="title">ETUDE</span>
@@ -217,6 +217,7 @@
       </span>
       <span class="tagline">a looping practice tool</span>
       <span class="grow"></span>
+      <button id="saveSessionBtn" title="Save this file + its loops & settings" disabled>save session</button>
       <a class="coffee" href="https://buymeacoffee.com/onurcelep" target="_blank" rel="noopener" title="Support Etude">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h11v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9z"/><path d="M16 10h2.5a2 2 0 0 1 0 4H16"/><path d="M8.5 5c0 1-1 1-1 2M11.5 5c0 1-1 1-1 2"/></svg>
         <span class="ctxt">buy me a coffee</span>
@@ -2097,7 +2098,7 @@ function setEngine() { const el = $('engine'); if (el) el.textContent = engine ?
    ========================================================================= */
 const LS = 'vlooper.v1';
 let store = loadStore();                 // { [id]: session }
-let cur = null;                          // current session object
+let cur = null, curBlob = null;          // current session object + its file bytes (for saving)
 let A = null, B = null, loopOn = false, activeSec = null;
 
 function loadStore() { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; } }
@@ -2108,8 +2109,9 @@ function persist() {
   if (!cur) return;
   cur.trans = +$('trans').value; cur.pitch = +$('pitch').value; cur.speed = +$('speed').value;
   cur.keepPitch = $('keepPitch').checked; cur.bpm = $('bpm').value;
-  cur.A = A; cur.B = B; cur.loopOn = loopOn;
-  cur.sections = sections; cur.lastOpened = Date.now();
+  cur.A = A; cur.B = B; cur.loopOn = loopOn; cur.sections = sections;
+  if (!cur.saved) return;                 // unsaved file: keep state in memory only
+  cur.lastOpened = Date.now();
   store[cur.id] = cur;
   clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveStore(); renderHistory(); }, 250);
 }
@@ -2150,21 +2152,21 @@ const idbGet = (id) => idbReq('videos', 'readonly', s => s.get(id)).catch(() => 
 const idbDel = (id) => idbReq('videos', 'readwrite', s => s.delete(id)).catch(() => {});
 const idbClear = () => idbReq('videos', 'readwrite', s => s.clear()).catch(() => {});
 
-// New file picked or dropped: open it AND store its bytes for next time.
+// Open a picked/dropped file. Nothing is stored unless you press "save session".
+// (If this exact file was saved before, its loops/settings are restored.)
 function load(file) {
   const id = file.name + '__' + file.size;
-  idbPut(id, file);                         // remember the actual video (local only)
-  openMedia(file, id, file.name, file.size);
+  openMedia(file, id, file.name, file.size, store[id] || null);
 }
 
-// Reopen from history — YouTube reloads by URL; local files reload stored bytes (no picker).
+// Reopen a saved session — reload its stored bytes (no picker).
 async function openFromHistory(id) {
   const s = store[id];
   const blob = await idbGet(id);
   if (!blob) {                              // bytes missing (cleared/quota) -> ask to relocate
     pendingId = id; $('file').click(); return;
   }
-  openMedia(blob, id, s ? s.name : 'video', s ? s.size : (blob.size || 0));
+  openMedia(blob, id, s ? s.name : 'video', s ? s.size : (blob.size || 0), s || null);
 }
 
 function applySession() {
@@ -2177,14 +2179,32 @@ function applySession() {
   loopOn = !!cur.loopOn; sections = cur.sections || []; activeSec = null;
   applyAll(); renderSections(); updateAB(); persist();
 }
-function openMedia(blob, id, name, size) {
+function openMedia(blob, id, name, size, sessionData) {
+  curBlob = blob;
   v.src = URL.createObjectURL(blob);
   v.classList.add('show');
-  cur = store[id] || { id, name, size };
-  cur.name = name; cur.size = size;
+  cur = sessionData || { id, name, size };
+  cur.name = name; cur.size = size; cur.saved = !!sessionData;   // "saved" only if it came from a stored session
   applySession();
   showPlayer();
   play();
+  updateSaveUI();
+}
+
+// Explicitly save the current session (video bytes + loops + settings).
+function saveSession() {
+  if (!cur || !v.src || !curBlob) return;
+  cur.saved = true;
+  persist(); saveStore();          // write settings now that it's saved
+  idbPut(cur.id, curBlob);         // store the file bytes for instant reopen
+  renderHistory(); updateSaveUI();
+}
+function updateSaveUI() {
+  const b = $('saveSessionBtn'); if (!b) return;
+  const saved = !!(cur && cur.saved);
+  b.textContent = saved ? 'saved ✓' : 'save session';
+  b.classList.toggle('on', saved);
+  b.disabled = !cur;
 }
 
 /* =========================================================================
@@ -2420,9 +2440,11 @@ document.addEventListener('keydown', e => {
 });
 
 $('vol').value = volume; updateMuteUI();
+$('saveSessionBtn').onclick = saveSession;
+updateSaveUI();
 showChooser();
 renderHistory();
-document.getElementById('app').classList.add('no-side');   // history drawer starts collapsed
+document.getElementById('app').classList.add('no-side');   // sessions drawer starts collapsed
 
 /* =========================================================================
    PRACTICE TIMER — stopwatch / countdown that follows playback, a daily
