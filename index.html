@@ -2131,13 +2131,20 @@ async function openMedia(blob, id, name, size, sessionData) {
   if (shifter) { try { shifter.disconnect(); } catch (e) {} shifter = null; }
   try {
     ensureCtx();
-    buffer = await ac.decodeAudioData(await blob.arrayBuffer());
+    const arr = await blob.arrayBuffer();
+    buffer = await new Promise((res, rej) => {           // handle BOTH promise & old callback forms (iOS Safari)
+      let p;
+      try { p = ac.decodeAudioData(arr, res, rej); } catch (err) { return rej(err); }
+      if (p && typeof p.then === 'function') p.then(res, rej);
+    });
+    if (!buffer) throw new Error('empty buffer');
     shifter = new PitchShifter(ac, buffer, 4096);
-    bufferMode = true; v.muted = true;                 // audio from engine; video muted, visual only
+    bufferMode = true; v.muted = true;                   // audio from engine; video muted, visual only
     engine = 'engine ready';
   } catch (e) {
     bufferMode = false; v.muted = false;
-    engine = 'native — transpose off (audio didn’t decode)';
+    engine = 'native — transpose off (' + ((e && e.name) || 'decode failed') + ')';
+    console.warn('Etude: decodeAudioData failed →', e);
   }
   setPitchEnabled(bufferMode); setEngine();
   applySession();     // applyAll → applyPitch/applySpeed onto the shifter
