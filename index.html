@@ -162,6 +162,19 @@
   footer{max-width:720px;margin:4px auto 36px;padding:0 24px;color:var(--faint);font-size:11px;letter-spacing:.03em}
   footer a{color:var(--mut);text-decoration:none;border-bottom:1px solid var(--line-2)}
   footer a:hover{color:var(--accent)}
+  /* practice timer */
+  .prow{display:flex;align-items:center;gap:10px;margin:12px 0}
+  .prow:first-of-type{margin-top:0}
+  .prow .plab{color:var(--mut);font-size:12px;min-width:74px}
+  .ptime{font-size:30px;font-variant-numeric:tabular-nums;letter-spacing:.02em;color:var(--ink)}
+  .ptime.done{color:var(--accent)}
+  .ptime2{font-size:19px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .modeseg2{display:inline-flex;border:1px solid var(--line-2);border-radius:var(--r-sm);overflow:hidden}
+  .modeseg2 .segb{border:none;border-radius:0;background:transparent;color:var(--mut);padding:6px 11px;font-size:12px}
+  .modeseg2 .segb:hover{background:var(--paper-2)}
+  .modeseg2 .segb.on{background:var(--ink);color:var(--paper)}
+  .modeseg2 .segb+.segb{border-left:1px solid var(--line-2)}
+  #timerToggle{min-width:66px}
   #installModal{position:fixed;inset:0;z-index:100;background:rgba(30,26,20,.45);display:flex;align-items:center;justify-content:center;padding:20px}
   #installModal[hidden]{display:none}
   .modal-box{position:relative;background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);max-width:440px;width:100%;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
@@ -282,6 +295,38 @@
           <button id="saveSection" class="tog" title="Save this A–B as a reusable loop">save-loop</button>
         </div>
         <div id="sections"></div>
+      </div>
+
+      <div class="card practicecard">
+        <div class="card-title">Practice <span class="grow"></span><span class="mut" id="todayTotal"></span></div>
+        <div class="prow">
+          <span class="ptime" id="ptime">0:00</span>
+          <span class="grow"></span>
+          <span class="modeseg2">
+            <button id="modeUp" class="segb on">stopwatch</button>
+            <button id="modeDown" class="segb">countdown</button>
+          </span>
+        </div>
+        <div class="prow" id="downRow" hidden>
+          <span class="plab">count down from</span>
+          <button class="step" id="tMinus">&minus;</button>
+          <span id="targetMin">10</span><span class="mut">&nbsp;min</span>
+          <button class="step" id="tPlus">+</button>
+        </div>
+        <div class="prow">
+          <button id="timerToggle" class="tog">start</button>
+          <button id="timerReset" class="mini">reset</button>
+          <span class="grow"></span>
+          <label class="mut"><input type="checkbox" id="followPlay" checked /> run while playing</label>
+        </div>
+        <div class="prow">
+          <span class="plab">reps</span>
+          <span id="repCount" class="ptime2">0</span>
+          <span class="grow"></span>
+          <span class="mut">stop at</span>
+          <input id="repTarget" type="number" min="0" placeholder="—" style="width:56px" />
+          <button id="repReset" class="mini">reset</button>
+        </div>
       </div>
     </div>
     <footer>
@@ -2179,7 +2224,7 @@ v.addEventListener('loadedmetadata', () => { if (cur) cur.dur = v.duration; upda
 function tick() {
   if (!hasMedia()) return;
   const t = pTime();
-  if (loopOn && A != null && B != null && !v.paused && t >= B) pSeek(A);   // only loop while actually playing
+  if (loopOn && A != null && B != null && !v.paused && t >= B) { pSeek(A); bumpRep(); }   // loop + count a rep
   $('played').style.width = pct(t) + '%';
   $('time').textContent = fmt(t) + ' / ' + fmt(pDur());
 }
@@ -2358,6 +2403,66 @@ $('vol').value = volume; updateMuteUI();
 showChooser();
 renderHistory();
 if (window.innerWidth <= 760) document.getElementById('app').classList.add('no-side');   // drawer collapsed on mobile
+
+/* =========================================================================
+   PRACTICE TIMER — stopwatch / countdown that follows playback, a daily
+   total, and an automatic rep counter tied to the A–B loop.
+   ========================================================================= */
+const TZ = { mode: 'up', running: false, elapsed: 0, start: 0, targetMin: 10 };
+let reps = 0, beepCtx = null;
+const tnow = () => performance.now();
+function beep(times) {
+  try {
+    beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (beepCtx.state === 'suspended') beepCtx.resume();
+    let t = beepCtx.currentTime;
+    for (let i = 0; i < (times || 1); i++) {
+      const o = beepCtx.createOscillator(), g = beepCtx.createGain();
+      o.type = 'sine'; o.frequency.value = 880;
+      o.connect(g); g.connect(beepCtx.destination);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.28, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.start(t); o.stop(t + 0.18); t += 0.24;
+    }
+  } catch (e) {}
+}
+const tzRun = () => TZ.elapsed + (TZ.running ? tnow() - TZ.start : 0);
+function fmtClock(ms) { ms = Math.max(0, ms); const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+const todayKey = () => 'etude.today.' + new Date().toISOString().slice(0, 10);
+function addToday(ms) { if (ms <= 0) return; try { localStorage.setItem(todayKey(), (+(localStorage.getItem(todayKey()) || 0) + ms)); } catch (e) {} }
+function todayMs() { return +(localStorage.getItem(todayKey()) || 0) + (TZ.running ? tnow() - TZ.start : 0); }
+function renderToday() { const m = Math.round(todayMs() / 60000); $('todayTotal').textContent = 'today: ' + (m < 60 ? m + 'm' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm'); }
+
+function startTimer() { if (TZ.running) return; TZ.start = tnow(); TZ.running = true; $('timerToggle').textContent = 'pause'; $('timerToggle').classList.add('on'); }
+function pauseTimer() { if (!TZ.running) return; const run = tnow() - TZ.start; TZ.elapsed += run; addToday(run); TZ.running = false; $('timerToggle').textContent = 'start'; $('timerToggle').classList.remove('on'); renderToday(); }
+function resetTimer() { pauseTimer(); TZ.elapsed = 0; $('ptime').classList.remove('done'); updateTimer(); }
+function updateTimer() {
+  const cur = tzRun();
+  if (TZ.mode === 'up') { $('ptime').textContent = fmtClock(cur); }
+  else {
+    const rem = TZ.targetMin * 60000 - cur;
+    $('ptime').textContent = fmtClock(rem);
+    if (rem <= 0 && TZ.running) { pauseTimer(); $('ptime').classList.add('done'); beep(3); }
+  }
+}
+function bumpRep() {
+  reps++; $('repCount').textContent = reps;
+  const tgt = +$('repTarget').value;
+  if (tgt > 0 && reps >= tgt) { beep(2); if (!v.paused) v.pause(); }
+}
+
+$('timerToggle').onclick = () => TZ.running ? pauseTimer() : startTimer();
+$('timerReset').onclick = resetTimer;
+$('modeUp').onclick = () => { TZ.mode = 'up'; $('modeUp').classList.add('on'); $('modeDown').classList.remove('on'); $('downRow').hidden = true; resetTimer(); };
+$('modeDown').onclick = () => { TZ.mode = 'down'; $('modeDown').classList.add('on'); $('modeUp').classList.remove('on'); $('downRow').hidden = false; resetTimer(); };
+$('tMinus').onclick = () => { TZ.targetMin = Math.max(1, TZ.targetMin - 1); $('targetMin').textContent = TZ.targetMin; updateTimer(); };
+$('tPlus').onclick = () => { TZ.targetMin = Math.min(180, TZ.targetMin + 1); $('targetMin').textContent = TZ.targetMin; updateTimer(); };
+$('repReset').onclick = () => { reps = 0; $('repCount').textContent = '0'; };
+v.addEventListener('play', () => { if ($('followPlay').checked) startTimer(); });
+v.addEventListener('pause', () => { if ($('followPlay').checked) pauseTimer(); });
+setInterval(() => { updateTimer(); if (TZ.running) renderToday(); }, 250);
+renderToday();
 
 /* PWA: register service worker for offline + installability */
 if ('serviceWorker' in navigator) {
