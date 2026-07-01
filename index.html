@@ -42,11 +42,12 @@
   .grow{flex:1}
   .mut{color:var(--mut)}
 
-  #app{display:grid;grid-template-columns:248px 1fr;height:100vh}
-  #app.no-side{grid-template-columns:0 1fr}
-  /* sidebar */
-  #sidebar{border-right:1px solid var(--line);overflow:auto;display:flex;flex-direction:column;background:rgba(44,40,32,.02)}
-  #app.no-side #sidebar{display:none}
+  #app{position:relative;min-height:100vh}
+  /* History as a slide-in drawer (all sizes) */
+  #sidebar{position:fixed;top:53px;left:0;bottom:0;width:280px;max-width:82%;z-index:60;overflow:auto;display:flex;flex-direction:column;
+           background:var(--paper);border-right:1px solid var(--line);box-shadow:8px 0 34px rgba(0,0,0,.14);
+           transform:translateX(0);transition:transform .22s ease}
+  #app.no-side #sidebar{transform:translateX(-100%);box-shadow:none}
   .side-h{display:flex;align-items:center;gap:8px;padding:22px 18px 12px;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut)}
   .side-h .grow{flex:1}
   #histList{padding:2px 10px 16px}
@@ -60,7 +61,7 @@
   .empty{color:var(--mut);font-size:12px;padding:12px;line-height:1.6}
 
   /* main */
-  main{overflow:auto;display:flex;flex-direction:column}
+  main{display:flex;flex-direction:column;min-height:100vh}
   .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:15px 24px;background:rgba(244,238,225,.9);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
   .brand{display:inline-flex;align-items:center;gap:9px;cursor:pointer}
   .brand .mark{width:13px;height:22px;color:var(--accent);flex:none}
@@ -70,9 +71,13 @@
   .topbar .title{letter-spacing:.18em;font-size:13px;font-weight:600}
   .tagline{color:var(--mut);font-size:11px;letter-spacing:.03em;border-left:1px solid var(--line-2);padding-left:13px;margin-left:5px}
   @media (max-width:900px){ .tagline{display:none} }
-  .wrap{max-width:1040px;width:100%;margin:0 auto;padding:30px 24px}
-  .stage{display:flex;flex-direction:column;gap:16px}
+  .wrap{max-width:1200px;width:100%;margin:0 auto;padding:26px 24px}
+  .workspace{display:flex;flex-direction:column;gap:16px}
+  .center,.side{display:flex;flex-direction:column;gap:16px;min-width:0}
   .player{min-width:0}
+  @media (min-width:1024px){
+    .workspace{display:grid;grid-template-columns:minmax(0,1fr) 336px;gap:18px;align-items:start}
+  }
   #drop{border:1px dashed var(--line-2);border-radius:var(--r);height:min(46vh,440px);min-height:240px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--mut);cursor:pointer;transition:.15s;font-size:12.5px;letter-spacing:.03em}
   #drop:hover{border-color:var(--mut);color:var(--mut)}
   #drop.hover{border-color:var(--accent);color:var(--accent)}
@@ -116,7 +121,6 @@
   .transport .time{color:var(--mut);font-size:12px;letter-spacing:.04em;margin-left:14px}
 
   .card{background:var(--card);padding:18px 20px;border:1px solid var(--line);border-radius:var(--r)}
-  .loopcard{margin-top:18px}
   .card-title{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin-bottom:16px;display:flex;align-items:center;gap:10px}
   .card-title .grow{flex:1}
 
@@ -180,19 +184,11 @@
 
   /* ---- mobile / responsive ---- */
   @media (max-width:760px){
-    /* simple, robust document flow on mobile — avoids iOS 100vh-grid collapse */
     html,body{height:auto}
-    #app{display:block;height:auto}
-    main{overflow:visible;height:auto}
-    /* history becomes a slide-in drawer below the top bar */
-    #sidebar{position:fixed;top:51px;left:0;bottom:0;width:84%;max-width:300px;z-index:60;background:var(--paper);
-             border-right:1px solid var(--line);box-shadow:6px 0 30px rgba(0,0,0,.18);
-             transform:translateX(0);transition:transform .22s ease}
-    #app.no-side #sidebar{transform:translateX(-100%);box-shadow:none}
     .topbar{padding:12px 14px;gap:9px}
     .topbar .title{font-size:12px;letter-spacing:.14em}
     .wrap{padding:16px 14px}
-    .stage{gap:14px}
+    .workspace{gap:14px}
     .coffee .ctxt{display:none}          /* keep just the cup icon to save space */
     .coffee{padding:7px 9px}
     .transport{flex-wrap:wrap}
@@ -228,8 +224,9 @@
     </div>
 
     <div class="wrap">
-      <div class="stage">
-        <div class="player">
+      <div class="workspace">
+        <div class="center">
+          <div class="player">
           <div id="drop">drop a file here, or click to browse</div>
           <div class="vwrap" id="vwrap">
             <video id="v" playsinline></video>
@@ -257,8 +254,20 @@
             </span>
           </div>
         </div>
-
-        <div class="card pitchcard">
+          <div class="card loopcard">
+        <div class="card-title">Loops</div>
+        <div id="loopHint"></div>
+        <div class="ptRow"><strong>A</strong> <input class="t" id="aTime" placeholder="--:--" /> <button id="setA" class="mini" title="Set start to current time">set</button> <button id="jumpA" class="mini play-mini" title="Play from A">&#9654;</button> <button id="clearA" class="mini" title="Clear A">clear</button></div>
+        <div class="ptRow"><strong>B</strong> <input class="t" id="bTime" placeholder="--:--" /> <button id="setB" class="mini" title="Set end to current time">set</button> <button id="jumpB" class="mini play-mini" title="Play from B">&#9654;</button> <button id="clearB" class="mini" title="Clear B">clear</button></div>
+        <div class="loopbar">
+          <button id="loopBtn" class="looptoggle" title="Loop the A–B section">&#10227;</button>
+          <button id="saveSection" class="tog" title="Save this A–B as a reusable loop">save-loop</button>
+        </div>
+        <div id="sections"></div>
+      </div>
+        </div>
+        <div class="side">
+          <div class="card pitchcard">
           <div class="card-title">Pitch &amp; Speed</div>
           <div class="row">
             <span class="lab">Transpose</span>
@@ -289,21 +298,7 @@
             <label class="mut">song bpm <input id="bpm" type="number" min="0" placeholder="—" style="width:62px" /></label>
           </div>
         </div>
-      </div>
-
-      <div class="card loopcard">
-        <div class="card-title">Loops</div>
-        <div id="loopHint"></div>
-        <div class="ptRow"><strong>A</strong> <input class="t" id="aTime" placeholder="--:--" /> <button id="setA" class="mini" title="Set start to current time">set</button> <button id="jumpA" class="mini play-mini" title="Play from A">&#9654;</button> <button id="clearA" class="mini" title="Clear A">clear</button></div>
-        <div class="ptRow"><strong>B</strong> <input class="t" id="bTime" placeholder="--:--" /> <button id="setB" class="mini" title="Set end to current time">set</button> <button id="jumpB" class="mini play-mini" title="Play from B">&#9654;</button> <button id="clearB" class="mini" title="Clear B">clear</button></div>
-        <div class="loopbar">
-          <button id="loopBtn" class="looptoggle" title="Loop the A–B section">&#10227;</button>
-          <button id="saveSection" class="tog" title="Save this A–B as a reusable loop">save-loop</button>
-        </div>
-        <div id="sections"></div>
-      </div>
-
-      <div class="card practicecard">
+          <div class="card practicecard">
         <div class="card-title">Practice <span class="grow"></span><span class="mut" id="todayTotal"></span></div>
         <div class="prow">
           <span class="ptime" id="ptime">0:00</span>
@@ -332,6 +327,8 @@
           <span class="mut">stop at</span>
           <input id="repTarget" type="number" min="0" placeholder="—" style="width:56px" />
           <button id="repReset" class="mini">reset</button>
+        </div>
+      </div>
         </div>
       </div>
     </div>
@@ -2374,7 +2371,7 @@ function renderHistory() {
       (s.label ? '<div class="meta" style="opacity:.7">' + esc(s.name) + '</div>' : '');
     el.querySelector('.del').onclick = (ev) => { ev.stopPropagation(); delete store[s.id]; saveStore(); idbDel(s.id); renderHistory(); };
     el.querySelector('.ren').onclick = (ev) => { ev.stopPropagation(); const nm = prompt('Name this session', s.label || s.name); if (nm != null) { s.label = nm.trim(); store[s.id] = s; saveStore(); renderHistory(); } };
-    el.onclick = () => { openFromHistory(s.id); if (window.innerWidth <= 760) $('app').classList.add('no-side'); };
+    el.onclick = () => { openFromHistory(s.id); $('app').classList.add('no-side'); };
     list.appendChild(el);
   });
 }
@@ -2416,7 +2413,7 @@ document.addEventListener('keydown', e => {
 $('vol').value = volume; updateMuteUI();
 showChooser();
 renderHistory();
-if (window.innerWidth <= 760) document.getElementById('app').classList.add('no-side');   // drawer collapsed on mobile
+document.getElementById('app').classList.add('no-side');   // history drawer starts collapsed
 
 /* =========================================================================
    PRACTICE TIMER — stopwatch / countdown that follows playback, a daily
