@@ -2195,7 +2195,7 @@ function openMedia(blob, id, name, size, sessionData) {
 
 // Explicitly save the current session (video bytes + loops + settings), with a name.
 function saveSession() {
-  if (!cur || !v.src || !curBlob) return;
+  if (!cur || !v.src || !curBlob || cur.saved) return;   // already saved → no re-prompt (it auto-updates)
   const suggested = cur.label || cur.name || 'Session';
   const name = prompt('Name this session:', suggested);
   if (name === null) return;                 // cancelled — don't save
