@@ -1997,10 +1997,8 @@ const pTime = () => bufferMode ? (shifter ? shifter.percentagePlayed / 100 * shi
 const pPaused = () => v.paused;
 function pSeek(t) {
   const d = pDur(); t = Math.max(0, Math.min(t, d || t));
-  if (bufferMode && shifter) {
-    shifter.percentagePlayed = d ? (t / d * 100) : 0;
-    try { shifter._soundtouch.clear(); } catch (e) {}   // drop buffered output → clean seek/loop
-  }
+  // NB: PitchShifter's percentagePlayed SETTER wants a 0–1 fraction (the getter returns 0–100).
+  if (bufferMode && shifter) shifter.percentagePlayed = d ? (t / d) : 0;   // setter also clears the pipe internally
   try { v.currentTime = t; } catch (e) {}
 }
 function play() {
